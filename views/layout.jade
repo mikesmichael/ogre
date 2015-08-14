@@ -85,5 +85,40 @@ html
                   .col-sm-9.col-sm-offset-3
                     button.btn.btn-warning(name="convert") Convert to Shapefile
                     p.help-block Note: Shapefiles can only support one geometry type
+
+        .col-md-6
+          .panel.panel-warning
+            .panel-heading
+              h3.panel-title Convert from GeoJSON
+            .panel-body
+              form.form-horizontal(role="form" action="/convertCsv", method="post")
+                .form-group
+                  label.col-sm-3.control-label(for='json') GeoJSON:
+                  .col-sm-9
+                    textarea#json.form-control(name="json", rows=10).
+                      { "type": "FeatureCollection",
+                        "features": [{
+                          "type": "Feature",
+                          "geometry": { "type": "Point", "coordinates": [102.0, 0.5] },
+                          "properties": { "prop0": "value0" }
+                        }]
+                      }
+                .form-group
+                  label.col-sm-3.control-label(for='jsonUrl') GeoJSON URL:
+                  .col-sm-9
+                    input#jsonUrl.form-control(name="jsonUrl", type="url", placeholder="e.g. http://path.to/sample.json")
+                .form-group
+                  label.col-sm-3.control-label(for='name') Output Name:
+                  .col-sm-9
+                    input#name.form-control(name="outputName", placeholder="e.g. myfile.csv")
+                .form-group
+                  .col-sm-9.col-sm-offset-3
+                    .checkbox
+                      label
+                        input(name="skipFailures", type='checkbox')
+                        | Skip failures
+                .form-group
+                  .col-sm-9.col-sm-offset-3
+                    button.btn.btn-warning(name="convert") Convert to CSV
       hr
       block body
