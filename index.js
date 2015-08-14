@@ -27,6 +27,7 @@ exports.createServer = function (opts) {
 
   app.options('/convert', enableCors, optionsHandler('POST'))
   app.options('/convertJson', enableCors, optionsHandler('POST'))
+  app.options('/convertCsv', enableCors, optionsHandler('POST'))
 
   app.use(express.static(__dirname + '/public'))
   app.get('/', function (req, res) {
@@ -37,57 +38,155 @@ exports.createServer = function (opts) {
   app.use(multiparty())
 
   app.post('/convert', enableCors, function (req, res, next) {
-    var ogr = ogr2ogr(req.files.upload.path)
 
-    if (req.body.targetSrs) {
+    var ogr = null;
+
+    if(req.body.json){
+		ogr = ogr2ogr(JSON.parse(req.body.json))
+	}
+	else if (req.body.jsonUrl){
+		ogr = ogr2ogr(req.body.jsonUrl)
+	}
+	else{
+		ogr = ogr2ogr(req.files.upload.path)
+	}
+
+    if ('skipFailures' in req.body) {
+      ogr.skipfailures()
+    }
+
+    if ('formatOutput' in req.body) {
+
+		switch(req.body.formatOutput.toUpperCase()){
+				case "CSV":
+					res.header('Content-Type', 'text/csv; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.csv') + ".csv")
+					ogr.options(['-lco', 'GEOMETRY=AS_XY']);
+					if('separatorOutput' in req.body)
+						ogr.options(['-lco', 'SEPARATOR='+req.body.separatorOutput]);
+					if('X_POSSIBLE_NAMES' in req.body)
+						ogr.options(['-oo', 'X_POSSIBLE_NAMES='+req.body.X_POSSIBLE_NAMES])
+					if('Y_POSSIBLE_NAMES' in req.body)
+						ogr.options(['-oo', 'Y_POSSIBLE_NAMES='+req.body.Y_POSSIBLE_NAMES])
+				break;
+				case "BNA":
+					res.header('Content-Type', 'text/plain; charset=utf-8')
+					res.header('Content-Disposition', 'attachment;filename=' + (req.body.outputName || 'ogre.bna') + ".bna")
+				break;
+				case "GEOJSON":
+					res.header('Content-Type', 'application/json; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.geojson') + ".geojson")
+				break;
+				case "GEOCONCEPT":
+					res.header('Content-Type', 'text/plain; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.gxt') + ".gxt")
+				break;
+				case "DXF":
+				case "DGN":
+					res.header('Content-Type', 'application/octet-stream; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.gxt') + ".dgn")
+				break;
+				case "GEORSS":
+					res.header('Content-Type', 'application/xml; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.rss') + ".rss")
+					if(req.body.targetSrs)
+						req.body.targetSrs = "EPSG:4326";
+				break;
+				case "GML":
+					res.header('Content-Type', 'application/xml; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.gml') + ".gml")
+				break;
+				case "GMT":
+					res.header('Content-Type', 'text/csv; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.gmt') + ".gmt")
+				break;
+				case "GPX":
+					res.header('Content-Type', 'application/xml; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.gpx') + ".gpx")
+					if(req.body.targetSrs)
+						req.body.targetSrs = "EPSG:4326";
+				break;
+				case "KML":
+					res.header('Content-Type', 'application/xml; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.kml') + ".kml")
+					if(req.body.targetSrs)
+						req.body.targetSrs = "EPSG:4326";
+				break;
+				case "TIGER":
+					res.header('Content-Type', 'application/json; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.rti.zip') + ".rti.zip")
+				break;
+				case "VRT":
+					res.header('Content-Type', 'application/json; charset=utf-8')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.vrt.zip') + ".vrt.zip")
+				break;
+				case "ESRI Shapefile":
+					res.header('Content-Type', 'application/zip')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.zip') + ".zip")
+				break;
+				case "PGDUMP":
+					res.header('Content-Type', 'text/plain')
+					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.sql') + ".sql")
+				break;
+				default:
+						res.header('Content-Type', 'text/plain; charset=utf-8')
+						res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre'))
+		}
+      ogr.format(req.body.formatOutput)
+    }
+    else{
+		return res.json({ errors: "Vous devez fournir un 'formatOutput' valide. '"+req.body.formatOutput+"' n'est pas un format valide."})
+	}
+
+	 if (req.body.targetSrs) {
       ogr.project(req.body.targetSrs, req.body.sourceSrs)
     }
 
-    if ('skipFailures' in req.body) {
-      ogr.skipfailures()
-    }
-
     if (opts.timeout) {
       ogr.timeout(opts.timeout)
     }
 
-    res.header('Content-Type', 'forcePlainText' in req.body ? 'text/plain; charset=utf-8' : 'application/json; charset=utf-8')
+	ogr.exec(function (er, data) {
+	  if(req.files)
+		fs.unlink(req.files.upload.path)
 
-    ogr.exec(function (er, data) {
-      fs.unlink(req.files.upload.path)
-      if (er) return res.json({ errors: er.message.replace('\n\n','').split('\n') })
-      if (req.body.callback) res.write(req.body.callback + '(')
-      res.write(JSON.stringify(data))
-      if (req.body.callback) res.write(')')
-      res.end()
-    })
-  })
+	  if (er) return res.json({ errors: er.message.replace('\n\n','').split('\n') })
 
-  app.post('/convertJson', enableCors, function (req, res, next) {
-    if (!req.body.jsonUrl && !req.body.json) return next(new Error('No json provided'))
 
-    var ogr
-    if (req.body.jsonUrl) {
-      ogr = ogr2ogr(req.body.jsonUrl)
-    }
-    else {
-      ogr = ogr2ogr(JSON.parse(req.body.json))
-    }
+	  if ('formatOutput' in req.body) {
+		switch(req.body.formatOutput.toUpperCase()){
 
-    if ('skipFailures' in req.body) {
-      ogr.skipfailures()
-    }
+				case "GEOJSON":
+				case "JSON":
+					if (req.body.callback)
+						res.write(req.body.callback + '(')
 
-    if (opts.timeout) {
-      ogr.timeout(opts.timeout)
-    }
+					  res.write(data)
 
-    ogr.format('shp').exec(function (er, buf) {
-      if (er) return res.json({ errors: er.message.replace('\n\n','').split('\n') })
-      res.header('Content-Type', 'application/zip')
-      res.header('Content-Disposition', 'filename=' + (req.body.outputName || 'ogre.zip'))
-      res.end(buf)
-    })
+					  if (req.body.callback)
+						res.write(')')
+
+					res.end();
+				break;
+				case "ESRI Shapefile":
+				case "TIGER":
+				case "VRT":
+					res.end(data)
+				break;
+				default:
+					res.write(data)
+					res.end()
+		}
+	  }
+	  else{
+			 return res.json({ errors: "Vous devez fournir un 'formatOutput' valide. '"+req.body.formatOutput+"' n'est pas un format valide."})
+		  }
+
+	  //return res.json({ errors: "test" })
+
+	})
+
+
   })
 
   app.use(function (er, req, res, next) {
