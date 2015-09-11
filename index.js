@@ -62,8 +62,8 @@ exports.createServer = function (opts) {
 					res.header('Content-Type', 'text/csv; charset=utf-8')
 					res.header('Content-Disposition', 'attachment; filename=' + (req.body.outputName || 'ogre.csv') + ".csv")
 					ogr.options(['-lco', 'GEOMETRY=AS_XY']);
-					if('separatorOutput' in req.body)
-						ogr.options(['-lco', 'SEPARATOR='+req.body.separatorOutput]);
+					if('separateurOutput' in req.body)
+						ogr.options(['-lco', 'SEPARATOR='+req.body.separateurOutput]);
 					if('X_POSSIBLE_NAMES' in req.body)
 						ogr.options(['-oo', 'X_POSSIBLE_NAMES='+req.body.X_POSSIBLE_NAMES])
 					if('Y_POSSIBLE_NAMES' in req.body)
