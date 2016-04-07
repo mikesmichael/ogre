@@ -8,6 +8,7 @@ function enableCors (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'POST')
   res.header('Access-Control-Allow-Headers', 'X-Requested-With')
+  res.header('Access-Control-Expose-Headers', 'Content-Disposition')
   next()
 }
 
@@ -182,11 +183,23 @@ exports.createServer = function (opts) {
 			 return res.json({ errors: "Vous devez fournir un 'formatOutput' valide. '"+req.body.formatOutput+"' n'est pas un format valide."})
 		  }
 
-	  //return res.json({ errors: "test" })
+    if (req.body.fileName) {
+      ogr.options(['-nln', req.body.fileName])
+    }
+
+    if ('skipFailures' in req.body) {
+      ogr.skipfailures()
+    }
 
 	})
 
+    var format = req.body.format || 'shp'
 
+    ogr.format(format).exec(function (er, buf) {
+      if (er) return res.json({ errors: er.message.replace('\n\n','').split('\n') })
+      res.header('Content-Type', 'application/zip')
+      res.header('Content-Disposition', 'filename=' + (req.body.outputName || 'ogre.zip'))
+      res.end(buf)
   })
 
   app.use(function (er, req, res, next) {
